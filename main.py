@@ -15,9 +15,9 @@ SQLALCHEMY_DATABASE_URL = URL.create(
 )
 engine = create_engine("mysql+pymysql://admin:@localhost/pizza")
 schema = """
+
     TABLE pizza_orders (
-        id INT PRIMARY KEY,
-        X INT,
+        id INT PRIMARY KEY AUTO INCREMENT,
         order_id VARCHAR(255),
         pizza_name VARCHAR(255),
         size VARCHAR(10),
@@ -27,7 +27,7 @@ schema = """
     )
 """
 
-sys_msg = f"Write an SQL query as the user says (JUST SQL NO TEXT/EXPLANATION). Schema: {schema}"
+sys_msg = f"You are a data chatbot. You take in a user query, translate it into MySQL Query. Surround your response with <result></result> tags. Schema: {schema}"
 
 def execsql():
     print('\n',st.session_state.response)
@@ -59,6 +59,7 @@ def respond():
         st.session_state.response += chunk['message']['content']
         print(chunk['message']['content'], end='', flush=True)
 
+    st.session_state.response = st.session_state.response.split('<result>')[1].split('</result>')[0]
     match = re.search(r'(?<=```)(\s|.)*(?=```)',st.session_state.response)
     if match:
         st.session_state.response = match.group()
