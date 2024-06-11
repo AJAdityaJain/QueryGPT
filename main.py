@@ -20,8 +20,8 @@ schema = """
         id INT PRIMARY KEY AUTO INCREMENT,
         order_id VARCHAR(255),
         pizza_name VARCHAR(255),
-        size VARCHAR(10),
-        type VARCHAR(50),
+        size VARCHAR(10) [S M L XL(extra large) XXL(extra extra large)],
+        type VARCHAR(50) [classic veggie chicken supreme],
         price FLOAT,
         order_datetime DATETIME
     )
@@ -33,7 +33,7 @@ def execsql():
     print('\n',st.session_state.response)
     try:
         st.session_state.data = pd.read_sql(st.session_state.response,engine)
-    except :
+    except:
         print('Error occured')
         with engine.connect() as conn:
             conn.execute(text(st.session_state.response))
@@ -59,7 +59,7 @@ def respond():
         st.session_state.response += chunk['message']['content']
         print(chunk['message']['content'], end='', flush=True)
 
-    st.session_state.response = st.session_state.response.split('<result>')[1].split('</result>')[0]
+    st.session_state.response = st.session_state.response.split('<result>')[1].split('</result>')[0].replace('%','%%')
     match = re.search(r'(?<=```)(\s|.)*(?=```)',st.session_state.response)
     if match:
         st.session_state.response = match.group()
