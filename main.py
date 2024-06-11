@@ -109,8 +109,8 @@ def init_app():
     input_container = st.container()
     with input_container:
         st.markdown('<div class="input-container">', unsafe_allow_html=True)
-        input, button = st.columns(2)
-        input.text_input("Type message  :", key='user_input')
+        input, button = st.columns([10,1])
+        input.text_input('',placeholder="Type message  :", key='user_input')
         button.button('✅',on_click=respond)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -123,11 +123,11 @@ def init_app():
     elif st.session_state.display == 'Table':
         st.dataframe(st.session_state.data)
         
-    st.sidebar.code(st.session_state.response,language='sql')
-    st.sidebar.button('▶️',on_click=execsql)
     st.session_state.display = st.sidebar.selectbox(
     "Display it as?",
     ("Raw", "Table"))
+    st.sidebar.code(st.session_state.response,language='sql')
+    st.sidebar.button('▶️',on_click=execsql)
 
 
 
