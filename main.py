@@ -6,18 +6,15 @@ import sqlalchemy as sql
 
 #Change accordingly
 db,table = 'pizza','pizza_orders'
-
 enum_threshhold = 8
-engine,sqltable,schema = None,None,None
-sys_msg = f"You are a data chatbot. You take in a user query, translate it into MySQL Query. Surround your response with <result></result> tags. Schema: "
 
 def exec_sql():
     print('\n',st.session_state.response)
     try:
-        st.session_state.data = pd.read_sql(st.session_state.response,engine)
+        st.session_state.data = pd.read_sql(st.session_state.response,st.session_state.engine)
     except:
         print('Error occured')
-        with engine.connect() as conn:
+        with st.session_state.engine.connect() as conn:
             conn.execute(sql.text(st.session_state.response))
             conn.commit()      
         st.session_state.data = pd.DataFrame(data=['Executed Successfully'])  
@@ -27,7 +24,7 @@ def respond():
     stream  = ollama.chat(model='phi3', messages=[
     {
         'role': 'system',
-        'content': sys_msg,
+        'content': st.session_state.schema_msg,
     },
     {
         'role': 'user',
@@ -82,6 +79,11 @@ def init_app():
         st.session_state.response = ""
     if "data" not in st.session_state:
         st.session_state.data = None
+    if "engine" not in  st.session_state:
+        st.session_state.engine = sql.create_engine("mysql+pymysql://admin:@localhost/"+db)
+    if "schema_msg" not in st.session_state:
+        st.session_state.schema_msg = get_schema_msg()
+
     st.title("QueryGPT")
 
 
@@ -110,33 +112,28 @@ def init_app():
     st.sidebar.code(st.session_state.response,language='sql')
     st.sidebar.button('▶️',on_click=exec_sql)
 
-def define_schema():
-    global schema,sys_msg,engine,sqltable
-    if schema is None:
-        engine = sql.create_engine("mysql+pymysql://admin:@localhost/"+db)
-        sqltable = sql.Table(table,sql.MetaData(),autoload_with=engine)
-        schema = f'TABLE {table} (\n'
-        for column in sqltable.columns:
-            schema += f'    {column.name} {column.type}'
-            if column.primary_key == True:
-                schema += ' PRIMARY-KEY'
-            if column.autoincrement == True:
-                schema += ' AUTO-INCREMENT'
-            enumval = pd.read_sql(f'SELECT DISTINCT {column.name} FROM {table}\nWHERE (SELECT COUNT(DISTINCT {column.name}) FROM {table}) < {enum_threshhold};',engine)
-            if len(enumval) != 0:
-                schema += ' ['
-                for val in enumval.values:
-                    schema += val[0]+' '
-                schema += ']'
+def get_schema_msg():
+    schema = f'TABLE {table} (\n'
+    sqltable = sql.Table(table,sql.MetaData(),autoload_with=st.session_state.engine)
+    for column in sqltable.columns:
+        schema += f'    {column.name} {column.type}'
+        if column.primary_key == True:
+            schema += ' PRIMARY-KEY'
+        if column.autoincrement == True:
+            schema += ' AUTO-INCREMENT'
+        enumval = pd.read_sql(f'SELECT DISTINCT {column.name} FROM {table}\nWHERE (SELECT COUNT(DISTINCT {column.name}) FROM {table}) < {enum_threshhold};',st.session_state.engine)
+        if len(enumval) != 0:
+            schema += ' ['
+            for val in enumval.values:
+                schema += val[0]+' '
+            schema += ']'
 
-            schema += ',\n'
-        schema += ')'
-        print(schema)
-        sys_msg += schema
+        schema += ',\n'
+    schema += ')'
+    print(schema)
+    return f"You are a data chatbot. You take in a user query, translate it into MySQL Query. Surround your response with <result></result> tags. Schema: "+ schema
 
 
 
 if __name__ == '__main__':
-    define_schema()
     init_app()
-    
