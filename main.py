@@ -2,44 +2,25 @@ import streamlit as st
 import ollama
 import re
 import pandas as pd
-from sqlalchemy import create_engine,URL,text
+import sqlalchemy as sql
 
-# conn = create_engine(user='admin', password='', database='pizza', host='localhost')
-SQLALCHEMY_DATABASE_URL = URL.create(
-    "mysql",
-    username="admin",
-    password='',
-    host="localhost",
-    # port=5432,
-    database="pizza",
-)
-engine = create_engine("mysql+pymysql://admin:@localhost/pizza")
-schema = """
+#Change accordingly
+db,table = 'pizza','pizza_orders'
 
-    TABLE pizza_orders (
-        id INT PRIMARY KEY AUTO INCREMENT,
-        order_id VARCHAR(255),
-        pizza_name VARCHAR(255),
-        size VARCHAR(10) [S M L XL(extra large) XXL(extra extra large)],
-        type VARCHAR(50) [classic veggie chicken supreme],
-        price FLOAT,
-        order_datetime DATETIME
-    )
-"""
+enum_threshhold = 8
+engine,sqltable,schema = None,None,None
+sys_msg = f"You are a data chatbot. You take in a user query, translate it into MySQL Query. Surround your response with <result></result> tags. Schema: "
 
-sys_msg = f"You are a data chatbot. You take in a user query, translate it into MySQL Query. Surround your response with <result></result> tags. Schema: {schema}"
-
-def execsql():
+def exec_sql():
     print('\n',st.session_state.response)
     try:
         st.session_state.data = pd.read_sql(st.session_state.response,engine)
     except:
         print('Error occured')
         with engine.connect() as conn:
-            conn.execute(text(st.session_state.response))
+            conn.execute(sql.text(st.session_state.response))
             conn.commit()      
         st.session_state.data = pd.DataFrame(data=['Executed Successfully'])  
-
 
 def respond():
     print('\n###################################\n')
@@ -66,7 +47,7 @@ def respond():
     st.session_state.response = st.session_state.response.removeprefix('sql')
 
     if None == re.match(r'\A\s*(delete|drop|truncate)',st.session_state.response,re.IGNORECASE):
-        execsql()
+        exec_sql()
     else:
         st.session_state.data = pd.DataFrame(data=['Confirm Operation'])  
         print('DANGER')
@@ -127,12 +108,35 @@ def init_app():
     "Display it as?",
     ("Raw", "Table"))
     st.sidebar.code(st.session_state.response,language='sql')
-    st.sidebar.button('▶️',on_click=execsql)
+    st.sidebar.button('▶️',on_click=exec_sql)
 
+def define_schema():
+    global schema,sys_msg,engine,sqltable
+    if schema is None:
+        engine = sql.create_engine("mysql+pymysql://admin:@localhost/"+db)
+        sqltable = sql.Table(table,sql.MetaData(),autoload_with=engine)
+        schema = f'TABLE {table} (\n'
+        for column in sqltable.columns:
+            schema += f'    {column.name} {column.type}'
+            if column.primary_key == True:
+                schema += ' PRIMARY-KEY'
+            if column.autoincrement == True:
+                schema += ' AUTO-INCREMENT'
+            enumval = pd.read_sql(f'SELECT DISTINCT {column.name} FROM {table}\nWHERE (SELECT COUNT(DISTINCT {column.name}) FROM {table}) < {enum_threshhold};',engine)
+            if len(enumval) != 0:
+                schema += ' ['
+                for val in enumval.values:
+                    schema += val[0]+' '
+                schema += ']'
 
+            schema += ',\n'
+        schema += ')'
+        print(schema)
+        sys_msg += schema
 
 
 
 if __name__ == '__main__':
+    define_schema()
     init_app()
     
