@@ -5,8 +5,8 @@ import pandas as pd
 import sqlalchemy as sql
 
 #Change accordingly
-db = 'synkdb'
-enum_threshhold = 0
+db = 'world_x'
+enum_threshhold = 8
 
 def exec_sql():
     print('\n',st.session_state.response)
@@ -121,6 +121,11 @@ def get_schema_msg():
         sqltable = sql.Table(table_name,sql.MetaData(),autoload_with=st.session_state.engine)
         for column in sqltable.columns:
             schema += f'    {column.name} {column.type}'
+            if len(column.foreign_keys) > 0:
+                schema += ' FOREIGN-KEY'
+                for fkey in column.foreign_keys:
+                    schema += ' ' + fkey._get_colspec()
+                
             if column.primary_key == True:
                 schema += ' PRIMARY-KEY'
             if column.autoincrement == True:
@@ -137,7 +142,7 @@ def get_schema_msg():
             schema += ',\n'
         schema += ')\n'
     print(schema)
-    return f"You take in a user query, translate it into MySQL Query. Handle relational queries too. Surround your response with <result></result> tags. Schema: "+ schema
+    return f"You take in a user query, translate it into MySQL Query Block. Handle relational queries too. Surround your response with <result></result> tag. Schema: "+ schema
 
 
 
