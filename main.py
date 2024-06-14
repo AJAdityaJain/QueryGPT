@@ -5,8 +5,8 @@ import pandas as pd
 import sqlalchemy as sql
 
 #Change accordingly
-db,table = 'pizza','pizza_orders'
-enum_threshhold = 8
+db = 'synkdb'
+enum_threshhold = 0
 
 def exec_sql():
     print('\n',st.session_state.response)
@@ -113,25 +113,31 @@ def init_app():
     st.sidebar.button('▶️',on_click=exec_sql)
 
 def get_schema_msg():
-    schema = f'TABLE {table} (\n'
-    sqltable = sql.Table(table,sql.MetaData(),autoload_with=st.session_state.engine)
-    for column in sqltable.columns:
-        schema += f'    {column.name} {column.type}'
-        if column.primary_key == True:
-            schema += ' PRIMARY-KEY'
-        if column.autoincrement == True:
-            schema += ' AUTO-INCREMENT'
-        enumval = pd.read_sql(f'SELECT DISTINCT {column.name} FROM {table}\nWHERE (SELECT COUNT(DISTINCT {column.name}) FROM {table}) < {enum_threshhold};',st.session_state.engine)
-        if len(enumval) != 0:
-            schema += ' ['
-            for val in enumval.values:
-                schema += val[0]+' '
-            schema += ']'
+    schema = ""
+    inspector = sql.inspect(st.session_state.engine)
 
-        schema += ',\n'
-    schema += ')'
+    for table_name in inspector.get_table_names(db):
+        schema += f'TABLE {table_name} (\n'
+        sqltable = sql.Table(table_name,sql.MetaData(),autoload_with=st.session_state.engine)
+        for column in sqltable.columns:
+            schema += f'    {column.name} {column.type}'
+            if column.primary_key == True:
+                schema += ' PRIMARY-KEY'
+            if column.autoincrement == True:
+                schema += ' AUTO-INCREMENT'
+            enumval = pd.read_sql(f'SELECT DISTINCT {column.name} FROM {table_name}\nWHERE (SELECT COUNT(DISTINCT {column.name}) FROM {table_name}) < {enum_threshhold};',st.session_state.engine)
+            if len(enumval) != 0:
+                schema += ' ['
+                for val in enumval.values:
+                    if val[0] is not None:
+                        schema += str(val[0])
+                        schema += ' '
+                schema += ']'
+
+            schema += ',\n'
+        schema += ')\n'
     print(schema)
-    return f"You are a data chatbot. You take in a user query, translate it into MySQL Query. Surround your response with <result></result> tags. Schema: "+ schema
+    return f"You take in a user query, translate it into MySQL Query. Handle relational queries too. Surround your response with <result></result> tags. Schema: "+ schema
 
 
 
