@@ -13,11 +13,15 @@ def exec_sql():
     try:
         st.session_state.data = pd.read_sql(st.session_state.response,st.session_state.engine)
     except:
-        print('Error occured')
-        with st.session_state.engine.connect() as conn:
-            conn.execute(sql.text(st.session_state.response))
-            conn.commit()      
-        st.session_state.data = pd.DataFrame(data=['Executed Successfully'])  
+        try:
+            print('Error occured')
+            with st.session_state.engine.connect() as conn:
+                conn.execute(sql.text(st.session_state.response))
+                conn.commit()      
+            st.session_state.data = pd.DataFrame(data=['Executed Successfully'])  
+        except:
+            st.session_state.data = pd.DataFrame(data=['Query Failed'])  
+
 
 def respond():
     print('\n###################################\n')
@@ -97,6 +101,16 @@ def init_app():
         button.button('✅',on_click=respond)
         st.markdown('</div>', unsafe_allow_html=True)
 
+    st.session_state.display = st.sidebar.selectbox(
+    "Display it as?",
+    ("Raw", "Table"))
+
+    if st.session_state.data is not None:
+        cols = pd.Series(st.session_state.data.columns)
+        for dup in cols[cols.duplicated()].unique():
+            cols[cols[cols == dup].index.values.tolist()] = [dup + '_' + str(i) if i != 0 else dup for i in range(sum(cols == dup))]
+        st.session_state.data.columns = cols
+
     if st.session_state.display == 'Raw':
         if st.session_state.data is not None:
             arg = st.session_state.data.to_json(orient='records')
@@ -105,10 +119,6 @@ def init_app():
         st.json(arg)
     elif st.session_state.display == 'Table':
         st.dataframe(st.session_state.data)
-        
-    st.session_state.display = st.sidebar.selectbox(
-    "Display it as?",
-    ("Raw", "Table"))
     st.sidebar.code(st.session_state.response,language='sql')
     st.sidebar.button('▶️',on_click=exec_sql)
 
@@ -122,10 +132,10 @@ def get_schema_msg():
         for column in sqltable.columns:
             schema += f'    {column.name} {column.type}'
             if len(column.foreign_keys) > 0:
-                schema += ' FOREIGN-KEY'
+                schema += ' FOREIGN-REFERENCE('
                 for fkey in column.foreign_keys:
                     schema += ' ' + fkey._get_colspec()
-                
+                schema += ')'
             if column.primary_key == True:
                 schema += ' PRIMARY-KEY'
             if column.autoincrement == True:
@@ -140,9 +150,9 @@ def get_schema_msg():
                 schema += ']'
 
             schema += ',\n'
-        schema += ')\n'
+        schema += ')\n\n'
     print(schema)
-    return f"You take in a user query, translate it into MySQL Query Block. Handle relational queries too. Surround your response with <result></result> tag. Schema: "+ schema
+    return f"You take in a user query, translate it into MySQL with respect to Schema. Handle relational queries. Surround your response with <result></result> tag and don't explain. Schema: "+ schema
 
 
 
